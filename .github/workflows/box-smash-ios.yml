@@ -69,7 +69,7 @@ jobs:
         run: |
           set -e
           npm init -y
-          npm install @capacitor/core@5 @capacitor/cli@5 @capacitor/ios@5
+          npm install @capacitor/core@5 @capacitor/cli@5 @capacitor/ios@5 @openforge/capacitor-game-connect@5.0.2
           if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
             npx cap init "Box Smash" "com.ryan.boxsmash" --web-dir=www
           fi
@@ -224,6 +224,30 @@ jobs:
                      CODE_SIGN_IDENTITY="" \
                      CODE_SIGN_ENTITLEMENTS="" \
                      archive
+
+      # Game Center needs its entitlement inside the app. The archive above is unsigned, so give it a
+      # temporary signature that carries the entitlement; the export step below re-signs it for the App Store.
+      - name: Add Game Center entitlement
+        run: |
+          set -e
+          APP=$(find "$RUNNER_TEMP/BoxSmash.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" | head -1)
+          echo "App: $APP"
+          cat > "$RUNNER_TEMP/gamecenter.entitlements" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>com.apple.developer.game-center</key>
+              <true/>
+          </dict>
+          </plist>
+          PLIST
+          if [ -d "$APP/Frameworks" ]; then
+            find "$APP/Frameworks" -maxdepth 1 \( -name "*.framework" -o -name "*.dylib" \) -exec codesign --force --sign - --timestamp=none {} \;
+          fi
+          codesign --force --sign - --timestamp=none --entitlements "$RUNNER_TEMP/gamecenter.entitlements" "$APP"
+          echo "--- entitlements now in the app ---"
+          codesign -d --entitlements - "$APP" 2>/dev/null || codesign -d --entitlements :- "$APP"
 
       - name: Export IPA (signed for the App Store)
         env:

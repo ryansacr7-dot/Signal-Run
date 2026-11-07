@@ -424,6 +424,7 @@
     <button class="btn secondary" id="loadoutBtn" data-i18n="loadout">Loadout</button>
     <button class="btn secondary" id="dailyBtn"><span data-i18n="daily">Daily</span><span class="notif-dot" id="dailyDot" style="display:none;"></span></button>
     <button class="btn secondary" id="recordsBtn" data-i18n="records">Records</button>
+    <button class="btn secondary" id="ryonicSyncBtn" style="display:none;">Sync to Ryonic</button>
     <button class="btn secondary" id="resetProgressBtn" data-i18n="resetProgress" style="opacity:0.6;font-size:11px;padding:8px 20px;">Reset Progress</button>
     <div id="menuVersion" style="font-size:10px;color:#4E5A6E;letter-spacing:1px;margin-top:2px;"></div>
   </div>
@@ -6580,6 +6581,38 @@ if (window.caches && caches.keys) {
   requestAnimationFrame(loop);
 })();
 
+</script>
+<script>
+/* ---------- Ryonic sync: sends this game's progress to the Ryonic app ---------- */
+function ryonicCanSync(){ try { return !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()); } catch(e){ return false; } }
+function ryonicSend(stats){
+  var json = JSON.stringify(stats);
+  var b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  var s = 'ryonic|' + b64, h = 2166136261;
+  for (var i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  var link = 'ryonic://sync?d=' + b64 + '&c=' + h.toString(16);
+  if (typeof window.__ryonicOpen === 'function') window.__ryonicOpen(link); else window.location.href = link;
+}
+
+(function(){
+  var btn = document.getElementById('ryonicSyncBtn');
+  if (!btn || !ryonicCanSync()) return;
+  function lang(){ try { var p = parseInt(localStorage.getItem('signalrun_profile')||'0',10)||0; var d = JSON.parse(localStorage.getItem(p===0?'signalrun_save':'signalrun_save_'+p)||'{}'); return (d.settings&&d.settings.lang)||'en'; } catch(e){ return 'en'; } }
+  btn.textContent = lang() === 'tr' ? "Ryonic'e Aktar" : 'Sync to Ryonic';
+  btn.style.display = '';
+  btn.addEventListener('click', function(){
+    /* let any pending save write first, then read the active profile */
+    try { window.dispatchEvent(new Event('pagehide')); } catch(e){}
+    setTimeout(function(){
+      var d = {};
+      try { var p = parseInt(localStorage.getItem('signalrun_profile')||'0',10)||0; d = JSON.parse(localStorage.getItem(p===0?'signalrun_save':'signalrun_save_'+p)||'{}'); } catch(e){}
+      var st = d.stats || {};
+      ryonicSend({ g:'signal', v:1, t:Date.now(), name:d.username||'', best:d.best||0, level:d.playerLevel||1, prestige:d.prestige||0,
+        campaign:d.level||1, kills:d.totalKills||0, bosses:d.totalBossKills||0, survive:d.longestSurvivalSeconds||0,
+        runs:st.runs||0, wave:st.bestWave||0, played: !!d.hasPlayedMatch || (st.runs||0) > 0 });
+    }, 150);
+  });
+})();
 </script>
 </body>
 </html>

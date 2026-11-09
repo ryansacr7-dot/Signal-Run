@@ -36,7 +36,9 @@ jobs:
         run: |
           set -e
           npm init -y
-          npm install @capacitor/core@5 @capacitor/cli@5 @capacitor/ios@5
+          # @capacitor/local-notifications powers the in-game reminders.
+          # It must be installed BEFORE "cap add ios" so it gets linked into the Pods.
+          npm install @capacitor/core@5 @capacitor/cli@5 @capacitor/ios@5 @capacitor/local-notifications@5
           if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
             npx cap init "Signals Run" "com.ryan.signalrun" --web-dir=www
           fi

@@ -98,7 +98,9 @@ jobs:
           set -e
           npm init -y
           npm install ./ryonic-link
-          npm install @capacitor/core@5 @capacitor/cli@5 @capacitor/ios@5
+          # local-notifications powers the in-game reminders;
+          # capacitor-game-connect powers the Game Center leaderboards.
+          npm install @capacitor/core@5 @capacitor/cli@5 @capacitor/ios@5 @capacitor/local-notifications@5 @openforge/capacitor-game-connect@5.0.2
           if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
             npx cap init "Signals Run" "com.ryan.signalrun" --web-dir=www
           fi
@@ -289,7 +291,7 @@ jobs:
       # Signing happens here, with the App Store profile
       # The archive above is unsigned, so give it a temporary signature that carries the App Group
       # entitlement; the export step re-signs it for the App Store.
-      - name: Add App Group entitlement
+      - name: Add App Group and Game Center entitlements
         run: |
           set -e
           APP=$(find "$RUNNER_TEMP" -maxdepth 4 -path "*.xcarchive/Products/Applications/*.app" -type d | head -1)
@@ -303,9 +305,14 @@ jobs:
               <array>
                   <string>group.com.ryonic.shared</string>
               </array>
+              <key>com.apple.developer.game-center</key>
+              <true/>
           </dict>
           </plist>
           PLIST
+          if [ -d "$APP/Frameworks" ]; then
+            find "$APP/Frameworks" -maxdepth 1 \( -name "*.framework" -o -name "*.dylib" \) -exec codesign --force --sign - --timestamp=none {} \;
+          fi
           codesign --force --sign - --timestamp=none --entitlements "$RUNNER_TEMP/ryonic.entitlements" "$APP"
           echo "--- entitlements now in the app ---"
           codesign -d --entitlements - "$APP" 2>/dev/null || codesign -d --entitlements :- "$APP"
